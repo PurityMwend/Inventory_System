@@ -1,2 +1,8 @@
-# Inventory_System
-An inventory management system is a system that will keep record of all items in a company, including the goods in stock as well as the raw materials that are available for the manufacture of goods
+# pytest cache directory #
+
+This directory contains data from the pytest's cache plugin,
+which provides the `--lf` and `--ff` options, as well as the `cache` fixture.
+
+**Do not** commit this to version control.
+
+See [the docs](https://docs.pytest.org/en/stable/how-to/cache.html) for more information.
