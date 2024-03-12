@@ -131,6 +131,41 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
         else:
             super().do_POST()
 
+    def do_PUT(self):
+            parsed_url = urlparse(self.path)
+            path = parsed_url.path
+            query_params = parse_qs(parsed_url.query)
+    
+            if path == '/api/productManagement' and 'product_id' in query_params:
+                # Get a specific product by ID
+                product_id = query_params['product_id'][0]
+                db_cursor.execute("SELECT * FROM products WHERE product_id = %s", (product_id,))
+                result = db_cursor.fetchone()
+                if result:
+                    content_length = int(self.headers['Content-Length'])
+                    put_data = self.rfile.read(content_length)
+                    put_data = json.loads(put_data.decode())
+    
+                    # Update product information
+                    db_cursor.execute("UPDATE products SET product_name = %s, description = %s, category = %s, unit_price = %s, quantity = %s WHERE product_id = %s",
+                                    (put_data['product_name'], put_data['description'], put_data['category'], put_data['unit_price'], put_data['quantity'], product_id))
+                    db_connection.commit()
+    
+                    self.send_response(200)
+                    self.send_cors_headers()
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    response_data = {"code": 200, "message": "Product information updated successfully", "product_id": product_id}
+                    self.wfile.write(json.dumps(response_data).encode())
+    
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+                    self.wfile.write(b'Product Not Found')
+                
+            else:   
+                super().do_PUT()
+
 # Define the host and port for the server
 host = 'localhost'
 port = 8080
