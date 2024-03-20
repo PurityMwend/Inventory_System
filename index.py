@@ -21,10 +21,13 @@ class CustomJSONEncoder(json.JSONEncoder):
 # Database Configuration(replace with your database settings)
 db_config = {
     'host': 'localhost',
-    'user': 'root',
-    'password': 'root',
+    'user': your_username,
+    'password': your_password',
     'database': 'stock'
 }
+
+
+db_connection = mysql.connector.connect(**db_config)
 
 # Create a MySQL database connection
 db_connection = mysql.connector.connect(**db_config)
@@ -52,8 +55,9 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
 
         if path == '/':
             # Serve the index.html file
-            # self.path = 'index.html_url'
+            # self.path = 'index.html_url' - **The Front-End url**
             pass
+        
         elif path == '/api/productManagement':
             if 'product_id' in query_params:
                 # Get a specific product by ID
@@ -87,7 +91,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                 # List all products
                 db_cursor.execute("SELECT * FROM products")
                 results = db_cursor.fetchall()
-                # for row in results:
+                
                 products = [{
                     'product_id' : row[0],
                     'product_name' : row[1],
@@ -133,7 +137,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                 # List all purchases
                 db_cursor.execute("SELECT * FROM purchases")
                 results = db_cursor.fetchall()
-                # for row in results:
+                
                 purchases = [{
                         'purchase_id' : row[0],
                         'supplier_id' : row[1],
@@ -145,6 +149,57 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps(purchases).encode())
+
+        elif path == '/api/salesManagement':
+            if 'sale_id' in query_params:
+                # Get a specific sale by ID
+                sale_id = query_params['sale_id'][0]
+                db_cursor.execute("SELECT * FROM sales WHERE sale_id = %s", (sale_id,))
+                result = db_cursor.fetchone()
+
+                if result:
+                    sale = {
+                        'sale_id' : result[0],
+                        'product_id' : result[1],
+                        'customer_name' : result[2],
+                        'user_id' : result[3],
+                        'quantity' : result[4],
+                        'sale_date' : result[5].isoformat(),
+                        'unit_price' : result[6],
+                        'total_price' : result[7]
+                    }
+
+                    self.send_response(200)
+                    self.send_cors_headers()
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps(sale, cls=CustomJSONEncoder).encode())
+                else:
+                    self.send_response(404)
+                    self.send_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'error': 'Sale not found'}).encode())
+            else:
+                # List all sales
+                db_cursor.execute("SELECT * FROM sales")
+                results = db_cursor.fetchall()
+
+                sales = [{
+                        'sale_id' : row[0],
+                        'product_id' : row[1],
+                        'customer_name' : row[2],
+                        'user_id' : row[3],
+                        'quantity' : row[4],
+                        'sale_date' : row[5].isoformat(),
+                        'unit_price' : row[6],
+                        'total_price' : row[7]
+                } for row in results]
+
+                self.send_response(200)
+                self.send_cors_headers()
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(sales).encode())
 
         elif path == '/api/supplierManagement':
             if 'supplier_id' in query_params:
@@ -175,7 +230,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                 # List all suppliers
                 db_cursor.execute("SELECT * FROM suppliers")
                 results = db_cursor.fetchall()
-                # for row in results:
+
                 suppliers = [{
                     'supplier_id' : row[0],
                     'supplier_name' : row[1],
@@ -188,6 +243,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps(suppliers).encode())
+
         elif path == '/api/userManagement':
             if 'user_id' in query_params:
                 # Get a specific user by ID
@@ -215,7 +271,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                 # List all users
                 db_cursor.execute("SELECT * FROM users")
                 results = db_cursor.fetchall()
-                # for row in results:
+
                 users = [{
                         'user_id' : row[0],
                         'username' : row[1],
@@ -269,6 +325,27 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             response_data = {"code": 201, "message": "Purchase created successfully", "purchase_id": purchase_id}
+            self.wfile.write(json.dumps(response_data).encode())
+
+        elif self.path == '/api/salesManagement':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            post_data = json.loads(post_data.decode())
+
+            print(post_data)
+            sale_id = post_data.get('sale_id')
+            
+
+            # Create a sale
+            db_cursor.execute("INSERT INTO sales(product_id, customer_name, user_id, quantity, sale_date, unit_price, totsl_price) VALUES(%s, %s, %s, %s, %s, %s, %s)", (sale_id,))
+            db_connection.commit()
+
+            sale_id = db_cursor.lastrowid
+            self.send_response(201)
+            self.send_cors_headers()
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            response_data = {"code": 201, "message": "Sale created successfully", "sale_id": sale_id}
             self.wfile.write(json.dumps(response_data).encode())
         
         elif self.path == '/api/supplierManagement':
@@ -444,7 +521,34 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_response(404)
                 self.end_headers()
                 self.wfile.write(b'Supplier Not Found')
-            
+        
+        elif path == '/api/salesManagement' and 'sale_id' in query_params:
+            # Get a specific sale by ID
+            sale_id = query_params['sale_id'][0]
+            db_cursor.execute("SELECT * FROM sales WHERE sale_id = %s", (sale_id,))
+            result = db_cursor.fetchone()
+            if result:
+                content_length = int(self.headers['Content-Length'])
+                put_data = self.rfile.read(content_length)
+                put_data = json.loads(put_data.decode())
+
+                # Update sale information
+                db_cursor.execute("UPDATE sales SET product_id = %s, customer_name = %s, user_id = %s, quantity = %s, sale_date = %s, unit_price = %s, total_price = %s WHERE sale_id = %s",
+                                (put_data['product_id'], put_data['customer_name'], put_data['user_id'], 
+                                put_data['quantity'], put_data['sale_date'], put_data['unit_price'], put_data['total_price'],supplier_id))
+                db_connection.commit()
+
+                self.send_response(200)
+                self.send_cors_headers()
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response_data = {"code": 200, "message": "Sale information updated successfully", "sale_id": sale_id}
+                self.wfile.write(json.dumps(response_data).encode())
+
+            else:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b'Sale Not Found')
         else:   
             super().do_PUT()
                 
@@ -499,7 +603,23 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 self.send_response(404)
                 self.end_headers()
-                self.wfile.write(b'Purchase Not Found')  
+                self.wfile.write(b'Purchase Not Found')
+
+        elif path == '/api/salesManagement' and 'sale_id' in query_params:
+            # Get a specific sale by ID
+            sale_id = query_params['sale_id'][0]
+            db_cursor.execute("SELECT * FROM sales WHERE sale_id = %s", (sale_id,))
+            result = db_cursor.fetchone()
+            if result:
+                # Delete sale information
+                db_cursor.execute("DELETE FROM sales WHERE sale_id = %s", (sale_id,))
+                db_connection.commit()
+                self.send_response(204)
+                self.end_headers()
+            else:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b'Sale Not Found')  
 
         elif path == '/api/userManagement' and 'user_id' in query_params:
             # Get a specific user by ID
@@ -525,7 +645,7 @@ port = 8080
 
 # Create and start the server
 with socketserver.TCPServer((host, port), MyHandler) as server:
-    print(f'Starting server on http://{host}:{port}')
+    print(f'Starting server on https://{host}:{port}')
     try:
         server.serve_forever()
     except KeyboardInterrupt:
